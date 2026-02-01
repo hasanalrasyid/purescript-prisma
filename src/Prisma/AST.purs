@@ -1,9 +1,7 @@
 module Prisma.AST where
 
-import Prelude hiding (between)
---
-import Data.Array (fromFoldable)
---
+import Prelude
+
 -- ==========================================
 -- DATA STRUCTURES (AST)
 -- ==========================================
@@ -17,6 +15,53 @@ data PrismaValue
   | PVFunc   String (Array PrismaValue)
   | PVKeyVal String PrismaValue
 
+data PrismaType
+  = PInt
+  | PString
+  | PBoolean
+  | PFloat
+  | PDecimal
+  | PBigInt
+  | PDateTime
+  | PJson
+  | PBytes
+  | PEnum String
+  | PMaybe PrismaType
+  | PArray PrismaType
+
+typeFromString mod t =
+  case mod of
+    "[]" -> PArray $ core t
+    "?"  -> PMaybe $ core t
+    _    -> core t
+  where
+    core = case _ of
+      "Int"       -> PInt
+      "String"    -> PString
+      "Boolean"   -> PBoolean
+      "Float"     -> PFloat
+      "Decimal"   -> PDecimal
+      "BigInt"    -> PBigInt
+      "DateTime"  -> PDateTime
+      "Json"      -> PJson
+      "Bytes"     -> PBytes
+      s           -> PEnum s
+
+instance showPrismaType :: Show PrismaType where
+  show PInt       = "PInt"
+  show PString    = "PString"
+  show PBoolean   = "PBoolean"
+  show PFloat     = "PFloat"
+  show PDecimal   = "PDecimal"
+  show PBigInt    = "PBigInt"
+  show PDateTime  = "PDateTime"
+  show PJson      = "PJson"
+  show PBytes     = "PBytes"
+  show (PEnum s)  = "PEnum " <> show s
+  show (PArray s) = "PArray " <> show s
+  show (PMaybe s) = "PMaybe " <> show s
+
+
 instance showPrismaValue :: Show PrismaValue where
   show (PVString s)    = "PVString " <> s
   show (PVIdent s)     = "PVIdent  " <> s
@@ -25,6 +70,17 @@ instance showPrismaValue :: Show PrismaValue where
   show (PVEnv s)       = "PVEnv    " <> "env(" <> show s <> ")"
   show (PVFunc n args) = "PVFunc   " <> n <> "(" <> show args <> ")"
   show (PVKeyVal k v)  = "PVKeyVal " <> k <> ": " <> show v
+
+toString :: PrismaValue -> String
+toString = case _ of
+  PVString s    -> s
+  PVIdent s     -> s
+  PVNumber s    -> show s
+  PVArray a     -> show a
+  PVEnv s       -> "env(" <> show s <> ")"
+  PVFunc n args -> n <> "(" <> show args <> ")"
+  PVKeyVal k v  -> k <> ": " <> show v
+
 
 instance eqPrismaValue :: Eq PrismaValue where
   eq (PVString a) (PVString b) = eq a b
@@ -37,9 +93,7 @@ instance eqPrismaValue :: Eq PrismaValue where
   eq _ _ = false
 
 type Key = String
-data Property = Property Key MetaValue
-
-type MetaValue =
+data Property = Property Key
   { val :: PrismaValue
   , meta :: Array Property
   }
@@ -72,6 +126,7 @@ data EnumDef = EnumDef Name
 
 type ModelField =
   { name :: String
+  , fieldType :: PrismaType
   , typeName :: String
   , modifier :: String -- "?" or "[]" or ""
   , attributes :: Array Property -- Real attributes like @id
@@ -92,36 +147,18 @@ data SchemaItem
 
 instance showSchemaItem :: Show SchemaItem where
   show (ItemGenerator g) =
-    "\nGenerator {\n" <>
-    "  name: " <> g.name <> "\n" <>
-    "  provider: " <> g.provider <> "\n" <>
-    "  properties: " <> show g.properties <> "\n" <>
-    "}"
+    "\nGenerator " <> show g
   show (ItemDatasource d) =
-    "\nDatasource {\n" <>
-    "  name: " <> d.name <> "\n" <>
-    "  provider: " <> d.provider <> "\n" <>
-    "  url: " <> show d.url <> "\n" <>
-    "  properties: " <> show d.properties <> "\n" <>
-    "}"
+    "\nDatasource " <> show d
   show (ItemEnum (EnumDef name e)) =
-    "\nEnum " <> name <> " {\n" <>
-    "  values: " <> show e.values <> "\n" <>
-    "  attributes: " <> show e.attributes <> "\n" <>
-    "}"
+    "\nEnum " <> name <> ":" <> show e
   show (ItemModel (ModelDef name m)) =
-    "\nModel " <> name <> " {\n" <>
-    "  fields: " <> show m.fields <> "\n" <>
-    "  attributes: " <> show m.attributes <> "\n" <>
-    "}"
+    "\nModel " <> name <> ":" <> show m
   show (ItemView (ModelDef name m)) =
-    "\nView " <> name <> " {\n" <>
-    "  fields: " <> show m.fields <> "\n" <>
-    "  attributes: " <> show m.attributes <> "\n" <>
-    "}"
+    "\nView " <> name <> ":" <> show m
 
 instance showProperty :: Show Property where
-  show (Property key p) = key <> ": " <> show p.val <> (if (fromFoldable p.meta) == [] then "" else " [Meta: " <> show p.meta <> "]")
+  show (Property key p) = "Property " <> key <> ": " <> show p
 
 instance eqProperty :: Eq Property where
   eq (Property k a) (Property j b) = eq a b && eq k j

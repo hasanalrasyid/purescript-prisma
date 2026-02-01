@@ -1,25 +1,27 @@
 module Prisma.Parser where
 
-import Prelude hiding (between)
+import Prelude
 import Control.Alt ((<|>))
-import Control.Lazy (fix) -- Added for recursive parsers
+import Control.Lazy (fix)
 import Data.Array (filter, find, fromFoldable, catMaybes)
 import Data.Array as A
 import Data.Either (Either(..), blush, hush)
 import Data.List.Types (List)
 import Data.Maybe (Maybe(..))
 import Data.String.CodeUnits (fromCharArray)
-----
--------- StringParser imports
-import StringParser (Parser, try, fail)
+
+------ StringParser imports
+import StringParser (Parser, unParser, try, fail)
 import StringParser as StringParser
 import StringParser.CodePoints (char, satisfy, string, anyChar)
 import StringParser.Combinators (sepBy1, many, lookAhead, option, sepBy)
-----
+
+--
 import Data.String.CodePoints (codePointFromChar)
 import Data.CodePoint.Unicode as U
---
-import Prisma.AST (Datasource, EnumDef(..), Generator, ModelDef(..), ModelField, PrismaValue(..), Property(..), SchemaItem(..), MetaValue)
+
+import Prisma.AST
+
 -- ==========================================
 -- PARSER IMPLEMENTATION
 -- ==========================================
@@ -34,12 +36,13 @@ listToString cs = fromCharArray (fromFoldable cs)
 
 isAlpha :: Char -> Boolean
 isAlpha = U.isAlpha <<< codePointFromChar
+
 isAlphaNum :: Char -> Boolean
 isAlphaNum c = U.isAlphaNum (codePointFromChar c) || c == '_' || c == '-' || c == '.'
 
 isSpace :: Char -> Boolean
 isSpace = U.isSpace <<< codePointFromChar
---
+
 isHorizontalSpace :: Char -> Boolean
 isHorizontalSpace c = c == ' ' || c == '\t'
 
@@ -224,7 +227,7 @@ parseGenerator = do
   pure { name, provider: providerVal, properties: otherProps }
 
 unProperty :: Property -> MetaValue
-unProperty (Property _ x) = x
+unProperty (Property key x) = x
 
 parseDatasource :: Parser Datasource
 parseDatasource = do
@@ -292,8 +295,8 @@ parseModelField = try do
 
   -- Parse meta comment //_
   m <- parseMeta
-
-  pure { name, typeName, modifier: mod, attributes: fromFoldable attrs, meta: m }
+  let fieldType = typeFromString mod typeName
+  pure { name, typeName, fieldType,  modifier: mod, attributes: fromFoldable attrs, meta: m }
 
 -- --- 6. Root Parser ---
 
