@@ -93,7 +93,9 @@ instance eqPrismaValue :: Eq PrismaValue where
   eq _ _ = false
 
 type Key = String
-data Property = Property Key
+data Property = Property Key MetaValue
+
+type MetaValue =
   { val :: PrismaValue
   , meta :: Array Property
   }
